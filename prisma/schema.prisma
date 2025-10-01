@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and profile
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Learning progress
+  xp            Int       @default(0)
+  level         Int       @default(1)
+  streak        Int       @default(0)
+  lastActiveAt  DateTime?
+
+  // Relations
+  lessonProgress   LessonProgress[]
+  challengeProgress ChallengeProgress[]
+  projectProgress  ProjectProgress[]
+  achievements     UserAchievement[]
+
+  @@index([email])
+}
+
+// Track lesson completion
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  moduleId    String
+  lessonId    String
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  timeSpent   Int      @default(0) // in seconds
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId, lessonId])
+  @@index([userId])
+}
+
+// Track challenge attempts and completion
+model ChallengeProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  challengeId  String
+  completed    Boolean  @default(false)
+  attempts     Int      @default(0)
+  bestTime     Int?     // in seconds
+  code         String?  // last submitted code
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId])
+  @@index([userId])
+}
+
+// Track project progress
+model ProjectProgress {
+  id                  String   @id @default(cuid())
+  userId              String
+  projectId           String
+  currentMilestone    Int      @default(0)
+  completedMilestones Int[]    @default([])
+  completed           Boolean  @default(false)
+  completedAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+}
+
+// Achievement definitions
+model Achievement {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String
+  icon        String
+  xpReward    Int      @default(0)
+  category    String   // learning, streak, challenge, project
+  requirement Json     // flexible requirements
+  createdAt   DateTime @default(now())
+
+  users UserAchievement[]
+}
+
+// User earned achievements
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+// Analytics for tracking popular content (privacy-friendly)
+model Analytics {
+  id        String   @id @default(cuid())
+  event     String   // lesson_view, challenge_attempt, etc.
+  entityId  String   // lessonId, challengeId, etc.
+  count     Int      @default(1)
+  date      DateTime @default(now()) @db.Date
+
+  @@unique([event, entityId, date])
+  @@index([event, date])
+}
